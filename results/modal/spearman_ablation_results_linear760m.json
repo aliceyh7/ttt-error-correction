@@ -1,0 +1,23 @@
+{
+ "source": "/vol/results/ladder_linear-760m/ablation_results_linear760m.json",
+ "n_layers": 24,
+ "all_layers": {
+  "rho": 0.49043478260869566,
+  "ci95": [
+   0.015630434782608716,
+   0.7913043478260869
+  ],
+  "n_boot": 10000
+ },
+ "excluding_max_cv_layer": {
+  "dropped_layer": 0,
+  "rho": 0.4209486166007905,
+  "ci95": [
+   -0.07018280632411064,
+   0.7559288537549407
+  ],
+  "n_boot": 10000
+ },
+ "argmax_coincide": true,
+ "argmin_coincide": true
+}

@@ -1,0 +1,25 @@
+validation_kit  --  built 2026-08-20T21:55:29Z by exp4/make_kit.sh
+
+vendored verbatim (md5 of the upstream source):
+  ttt.py                 eb9083c6f2379b1598351302e713c57e  <- ttt-lm-pytorch/ttt.py
+  run_ablation_ladder.py 4b98f296678f417cba7a8ae8320fd29f  <- exp3/
+vendored with one documented edit (import path only):
+  ttt_arms.py            381c73ccfaff22ff61e73a01ece232cb  <- exp3/
+
+files in the kit:
+  bc50257ffa15618d1b6b872a08db5db5  LICENSE.ttt-lm-pytorch
+  0396b8bd294e2b3ddebda3f60beba54c  README.md
+  41cfdf155909d788ee4647749fa4ab96  convert_jax_to_pt.py
+  e4b068839fd7893ec218e7fc4a1efd30  jax_ref_numpy.py
+  560bbc78e2737a38c67635e6a2c610d4  make_synthetic_jax_ckpt.py
+  4b98f296678f417cba7a8ae8320fd29f  run_ablation_ladder.py
+  b13d095caa52f5126eb1bc77693a7993  run_delta_probe.py
+  3b632be1e756beb701b6b1fdc1b7f267  run_validation.sh
+  f37e1d78634c05ff09ac963034d2fc66  test_conversion.py
+  eb9083c6f2379b1598351302e713c57e  ttt.py
+  40e04e8fb32f0048b4242c2ff5b388ed  ttt_arms.py
+
+validation_kit v2 (Oct 2026 revision):
+  ttt_arms.py           + hebbian_nm arm (norm-matched Hebbian), NORMMATCH_LOG
+  run_ablation_ladder.py + --normmatch-level, default arms include hebbian_nm, normmatch_ratio in JSON
+  bootstrap_spearman.py  new: layer-bootstrap CI for rho(CV(gamma^2), delta_fraction)

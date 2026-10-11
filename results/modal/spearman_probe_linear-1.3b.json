@@ -1,0 +1,23 @@
+{
+ "source": "/vol/results/probe_linear-1.3b.json",
+ "n_layers": 24,
+ "all_layers": {
+  "rho": 0.31478260869565217,
+  "ci95": [
+   -0.12695652173913044,
+   0.6921739130434783
+  ],
+  "n_boot": 10000
+ },
+ "excluding_max_cv_layer": {
+  "dropped_layer": 0,
+  "rho": 0.22134387351778656,
+  "ci95": [
+   -0.22134387351778656,
+   0.6215662055335964
+  ],
+  "n_boot": 10000
+ },
+ "argmax_coincide": true,
+ "argmin_coincide": false
+}

@@ -1,0 +1,23 @@
+{
+ "source": "/vol/results/probe_mlp-760m.json",
+ "n_layers": 24,
+ "all_layers": {
+  "rho": 0.5121739130434783,
+  "ci95": [
+   0.12347826086956522,
+   0.7660869565217391
+  ],
+  "n_boot": 10000
+ },
+ "excluding_max_cv_layer": {
+  "dropped_layer": 0,
+  "rho": 0.44565217391304346,
+  "ci95": [
+   0.06126482213438735,
+   0.7193675889328063
+  ],
+  "n_boot": 10000
+ },
+ "argmax_coincide": true,
+ "argmin_coincide": false
+}
