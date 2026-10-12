@@ -25,7 +25,7 @@ V = "/vol"
 image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install("torch==2.4.1", "numpy<2", "transformers==4.44.2", "safetensors",
-                 "msgpack", "huggingface_hub", "matplotlib", "tqdm")
+                 "msgpack", "huggingface_hub", "matplotlib", "tqdm", "scipy")
     .add_local_dir("validation_kit", remote_path="/root/validation_kit")
 )
 

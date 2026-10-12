@@ -1,155 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-ttt_arms.py -- five-arm ablation of the TTT inner-loop update.
+"""Inference-time interventions at the released fused LayerNorm gradient.
 
-The ablation is applied to the *reference* implementation
-(ttt-lm-pytorch/ttt.py) at inference time only.  Outer weights are frozen; the
-only thing that changes between arms is the inner-loop update rule.
+The historical names hebbian and hebbian_nm are retained for compatibility
+with saved runs. The paper calls these prediction removed and norm matched.
 
-WHY A ONE-FUNCTION PATCH IS SUFFICIENT
---------------------------------------
-Read ttt.py carefully and you find that *every* consumer of the inner gradient,
-in both the dual and the primal form, and in both TTTLinear and TTTMLP, is a
-function of a single tensor produced by a single module-level function:
+For z = f_W(k), y = gamma * zhat + beta, and target = v - k,
+    g = P_epsilon(zhat)[gamma * (y - target)] / std.
+The drop_pred arm retains only the target component, so the removed component
+includes both gamma**2 * zhat and gamma * beta after the Jacobian. The drop_w
+alternative retains the beta component. These interventions need not agree.
+Both retain state dependence through the LayerNorm Jacobian and std.
 
-    ttt.py:975   grad_l_wrt_Z1 = ln_fused_l2_bwd(Z1, reconstruction_target, ...)   # TTTLinear
-    ttt.py:1137  grad_l_wrt_Z2 = ln_fused_l2_bwd(Z2, reconstruction_target, ...)   # TTTMLP
-    ttt.py:1139  grad_l_wrt_Z1 = grad_l_wrt_Z2 @ W2_init.T * gelu_bwd(Z1)          # TTTMLP chain rule
+With gamma**2 = c and beta = 0, the removed component is
+    c * epsilon * zhat / std**3.
+Cancellation is exact at epsilon zero with nonzero prediction variance.
+Gain variation alone does not determine the component because alignment with
+activations matters. The pure alternative bypasses the normalization Jacobian,
+but a nonlinear inner model can still introduce parameter dependence.
 
-Consumers:
-    TTTLinear dual   : ttt.py:981 (b1_bar), 983 (Z1_bar), 987 (W1_last), 989 (b1_last)
-    TTTLinear primal : ttt.py:1003-1007 (grad_W1, grad_b1) -> 1010-1019
-    TTTMLP    dual   : ttt.py:1144,1146 (b1_bar,Z1_bar), 1152,1154 (b2_bar,Z2_bar),
-                       1158-1164 (W1_last,b1_last,W2_last,b2_last)
-    TTTMLP    primal : ttt.py:1181-1194 -> 1196-1213
-
-`compute_mini_batch` is a closure that resolves `ln_fused_l2_bwd` as a *module
-global* at call time.  Rebinding that global therefore changes the inner update
-consistently everywhere -- dual form, primal form, output path (`Z*_bar`) and
-carried state (`W*_last`) -- with zero risk of the arms differing from the
-baseline anywhere except in the intended term.  We never fork or paraphrase the
-file.
-
-THE FUSED-LAYERNORM SUBTLETY
-----------------------------
-The inner loss is NOT  1/2 || W k + b - (v - k) ||^2 .  It is
-
-    l(W) = 1/2 || LN_{gamma,beta}( f_W(k) ) - (v - k) ||^2                (ttt.py:970/975)
-
-so the "prediction" seen by the L2 loss is LN(Z), not Z, and the gradient that
-multiplies the key in the outer product is pushed back through the LN Jacobian
-(ttt.py:478-505):
-
-    Zhat   = (Z - mu) / std
-    y      = gamma * Zhat + beta                          # the prediction
-    gout   = y - target                                   # ttt.py:493
-    gxhat  = gamma * gout                                 # ttt.py:494
-    g      = (1/D)(D*gxhat - sum(gxhat) - Zhat*sum(gxhat*Zhat)) / std      # ttt.py:495-503
-           = P(Zhat) gxhat / std ,  P(Zhat) = I - 11^T/D - Zhat Zhat^T/D
-
-and the fast-weight update is  W <- W - eta * k g^T  (ttt.py:987).
-
-Substituting y = gamma*Zhat + beta splits `gout` into a prediction part and a
-target part:
-
-    gout = [gamma * Zhat]  +  [beta - target]
-            ^^^^^^^^^^^^^     ^^^^^^^^^^^^^^^
-            depends on W      independent of W
-
-Only the first bracket carries W.  It is the *sole* source of the contraction
-W(I - eta k k^T) in the linear-no-LN limit: with gamma=1, beta=0, LN=identity,
-g = Z - target = W^T k + b - (v-k) and W <- W - eta k (k^T W)^T - eta k (b-v+k)^T
-  = W(I - eta k k^T) + eta k (v - k - b)^T .
-So "delete the error-correction term" == "delete the W-dependent part of gout".
-
-Three defensible ways to do that under a fused LN; all are implemented, the
-first is the default:
-
-  hebbian_mode='drop_pred'  (PRIMARY)
-        gout := -target.
-        Deletes the whole prediction y = gamma*Zhat + beta.  This is the exact
-        analogue of "zero out the prediction slot of the delta rule", it reduces
-        *exactly* to W <- W + eta v k^T in the LN->identity limit, and it is the
-        most conservative reading of "prediction-dependent part".
-        Residual W-dependence: the LN Jacobian P(Zhat)/std is still evaluated at
-        the live Z.  That factor is a rank-(D-2) projection times a scalar
-        1/std; it rescales and deflates the write but it is NOT an error
-        correction (it does not depend on the target, and it cannot produce the
-        k k^T contraction, which requires gout to be linear in W^T k).
-
-  hebbian_mode='drop_w'     (ALTERNATIVE, --hebbian-mode drop_w)
-        gout := beta - target.
-        Deletes only gamma*Zhat, i.e. exactly and only the tensor factor that
-        carries W.  Differs from 'drop_pred' by the constant -beta*(...)/std
-        write.  For the released checkpoints beta = ttt_norm_bias, initialised
-        to 0 (ttt.py:698-699) and typically small, so the two agree closely; we
-        report both so the claim does not rest on the choice.
-
-  hebbian_mode='pure'       (ALTERNATIVE, --hebbian-mode pure)
-        g := gamma * (-target)   (no LN projection, no 1/std).
-        Removes *all* dependence of the update on the fast weights, so the layer
-        becomes an exact outer-product (Hebbian) associative memory
-        W <- W + eta k (gamma*(v-k))^T .  Use this one when the claim to be
-        tested is literally "the layer is a Hebbian memory"; use 'drop_pred'
-        when the claim is "the error-correction term does no work".
-
-CONSEQUENCE THAT THE EXPERIMENT MUST NOT MISS
----------------------------------------------
-Under this fused LN the error-correction term is not merely *small* when
-eta*||k||^2 is small -- for channel-uniform `ttt_norm_weight` it is EXACTLY ZERO
-at every step size.  Substituting gout_pred = gamma * Zhat into ttt.py:495-503:
-
-    P(Zhat)[gamma^2 * Zhat] = gamma^2*Zhat - mean(gamma^2*Zhat) 1
-                              - Zhat * mean(gamma^2 * Zhat^2)
-
-and for gamma^2 = c (constant across channels) this is
-    c*Zhat - c*mean(Zhat)*1 - Zhat*c*mean(Zhat^2) = c*Zhat - 0 - c*Zhat = 0
-because LayerNorm guarantees mean(Zhat)=0 and mean(Zhat^2)=1.
-
-What survives is proportional to the channel-to-channel VARIATION of gamma^2:
-with gamma^2 = c(1+delta), mean(delta)=0,
-
-    P(Zhat)[gamma^2 Zhat] = c * P(Zhat)[delta * Zhat]  = O(c * std(delta) * sqrt(D))
-
-so the natural dimensionless control parameter for "does the delta term do any
-work" is
-
-    rho_delta  ~  ||gamma||_rms * CV(gamma^2) * sqrt(head_dim) / ||v - k||
-
-NOT eta*||k||^2.  Indeed ||Z|| (and hence ||k||) cancels out of the ratio
-entirely: the prediction is LN-bounded at ||gamma||*sqrt(D) while the target
-v - k is not, so *increasing* ||k|| makes the update MORE Hebbian, not less.
-This is measured directly by `delta_fraction_probe` below and cross-checked in
-validate_arms.py.  The claim of the paper survives -- the layer really is a
-Hebbian outer-product write -- but the stated reason (small eta*||k||^2) is not
-the operative mechanism in the reference implementation.
-
-TTT-MLP
--------
-The delta-rule theory applies to the *final* fast-weight layer W2 (ttt.py:1162):
-
-    W2 <- W2 - eta * X2^T grad_l_wrt_Z2 ,   X2 = gelu(k W1 + b1)  (ttt.py:1129)
-
-so the effective key is the post-GELU hidden activation X2 (width 4*head_dim),
-NOT k, and the relevant small-step quantity is eta*||X2||^2, not eta*||k||^2.
-Patching `ln_fused_l2_bwd` gives the intended arm on W2 exactly.  It also
-propagates through the chain rule at ttt.py:1139 to W1.  That is deliberate and
-correct (the arms ablate the *inner loss gradient*), but note the honest caveat:
-the W1 update of TTT-MLP is a backprop-through-GELU term and is never a pure
-outer-product rule in any arm, because grad_l_wrt_Z1 still contains W2_init and
-gelu'(Z1).  Only the W2 update is a clean delta rule.
-
-CHUNK-BOUNDARY STATE
---------------------
-`scan` (ttt.py:431-458) carries params_dict across mini-batches.  Per mini-batch
-the state is advanced once, at the last token, using `last_eta` (ttt.py:985,
-1156) = eta[:, :, -1, :, None] = token_eta[K-1] * ttt_lr_eta[:] -- the last row
-of the [K,K] eta matrix, i.e. every token's lr weighted by the *last* token's
-token_idx factor.  Within a mini-batch the per-token weights W(t) are never
-materialised in the dual form; they are folded into Z1_bar via the causal
-`Attn1` matrix (ttt.py:979-983).  Both the dual output path and the carried
-state are functions of grad_l_wrt_Z*, hence both are covered by the patch.
+The patch affects the output and carried-state computations in both TTTLinear
+and TTTMLP. For MLP it also propagates through the hidden-layer chain rule.
+Norm matching preserves each token/head gradient norm at the current modified
+state, not the summed chunk-update norm or the separate baseline trajectory.
 """
 
 from __future__ import annotations
@@ -415,18 +288,10 @@ def delta_fraction_probe(ttt_mod=None, hebbian_mode="drop_pred", sink=None):
 
 
 def _gamma_cv2(gamma):
-    """Coefficient of variation of gamma^2 across channels, averaged over heads.
+    """Population CV of gamma squared across channels, averaged over heads.
 
-    THE control parameter for the error-correction term under a fused LN.  With
-    P(Zhat) u = u - mean(u) 1 - Zhat (Zhat.u)/D  (ttt.py:495-503), the
-    prediction part of grad_output contributes
-
-        P(Zhat)[gamma^2 * Zhat] / std
-
-    and for CHANNEL-UNIFORM gamma this is IDENTICALLY ZERO, because
-    mean(Zhat) = 0 and (Zhat.Zhat)/D = 1.  What survives is proportional to the
-    channel-to-channel *variation* of gamma^2 -- not to eta*||k||^2, and not to
-    ||Z|| (hence not to ||k||) at all.
+    This parameter summary is not a calibrated correction gate. The projected
+    prediction component also depends on activation alignment and epsilon.
     """
     g2 = gamma.detach().to(torch.float64).reshape(gamma.shape[0], -1) ** 2
     m = g2.mean(-1)

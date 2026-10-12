@@ -1,0 +1,11 @@
+{
+  "autodiff_max_abs_error": 1.5543122344752192e-15,
+  "drop_pred_matches_prediction_plus_offset": true,
+  "drop_w_matches_prediction_only": true,
+  "token_norm_matching": true,
+  "epsilon_residual": true,
+  "CV_orientation_counterexample": true,
+  "nonlinear_gauge_max_abs_error": 0.0,
+  "baseline_bitwise_equal": true,
+  "frozen_state_constant": true
+}

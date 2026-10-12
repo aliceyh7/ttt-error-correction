@@ -1,0 +1,7 @@
+numpy
+scipy
+matplotlib
+torch
+transformers==4.44.2
+safetensors
+msgpack

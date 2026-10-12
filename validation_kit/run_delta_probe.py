@@ -1,25 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-run_delta_probe.py -- run `delta_fraction_probe` on a converted OFFICIAL
-TTT checkpoint and emit the per-layer delta_fraction table alongside the
-CV(gamma^2) that the theory says controls it.
+"""Measure the local prediction-removal gradient norm ratio on real tokens.
 
-    delta_fraction = || g_descent - g_hebbian || / || g_descent ||
+The default drop_pred intervention removes the full affine LayerNorm
+prediction, including beta, while retaining its state-dependent Jacobian.
+The ratio ||g_full - g_target||_F / ||g_full||_F is computed over each full
+kernel-call tensor in float64, then averaged by layer. It can exceed one and
+is not a fraction of explained variance or causal contribution. Gain CV is a
+parameter summary, not a sufficient statistic for the live ratio.
 
-measured in float64 at every (layer, mini-batch) call site of
-`ttt.ln_fused_l2_bwd`, on REAL tokens, with the model otherwise completely
-unmodified (the probe computes the Hebbian gradient as a side calculation and
-returns the descent gradient, so the forward pass is bit-identical to the
-stock model).
-
-The claim under test (ttt_arms.py, "THE FUSED-LAYERNORM SUBTLETY"): under the
-shipped fused-LayerNorm inner loss the error-correction ("delta") term is
-annihilated exactly when `ttt_norm_weight` is channel-uniform, so the natural
-control parameter is CV(gamma^2), not eta*||k||^2.  This script measures both
-on the real weights and prints them side by side.
-
-    python3 run_delta_probe.py --checkpoint OUT_DIR --text corpus.txt
+The probe returns the original gradient, leaving the model forward unchanged.
 """
 
 from __future__ import annotations

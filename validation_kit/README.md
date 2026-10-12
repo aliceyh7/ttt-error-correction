@@ -1,3 +1,9 @@
+# Revised interpretation
+
+Use the repository README and `scripts/recompute_and_check.py` for the revised analysis. Historical references below to a Hebbian arm mean prediction removal with the live LayerNorm Jacobian retained. Uniform-gain cancellation requires the zero-epsilon limit. The gain coefficient of variation is not a calibrated correction gate. Saved 760M probe coverage is 128 chunks per layer; the standalone 1.3B and MLP probes cover 512.
+
+The following original usage documentation is retained for compatibility.
+
 # TTT validation kit — official JAX checkpoint → PyTorch → live probe → five-arm ladder
 
 Everything needed to convert the **official** Test-Time-Training checkpoints,

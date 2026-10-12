@@ -12,11 +12,12 @@ and `gamma_cv2`).
 import argparse
 import json
 import numpy as np
+from scipy.stats import rankdata
 
 
 def spearman(x, y):
-    rx = np.argsort(np.argsort(x)).astype(float)
-    ry = np.argsort(np.argsort(y)).astype(float)
+    rx = rankdata(x, method="average").astype(float)
+    ry = rankdata(y, method="average").astype(float)
     rx -= rx.mean(); ry -= ry.mean()
     d = np.sqrt((rx ** 2).sum() * (ry ** 2).sum())
     return float((rx * ry).sum() / d) if d > 0 else float("nan")
