@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ttt_arms.py -- four-arm ablation of the TTT inner-loop update.
+ttt_arms.py -- five-arm ablation of the TTT inner-loop update.
 
 The ablation is applied to the *reference* implementation
 (ttt-lm-pytorch/ttt.py) at inference time only.  Outer weights are frozen; the
@@ -160,11 +160,10 @@ import sys
 
 import torch
 
-REPOS = os.environ.get("TTCL_REPOS", "/home/claude/work/measurement/repos")
-# validation_kit change (exp4): prefer the ttt.py VENDORED next to this file,
-# so the kit is self-contained and needs no clone of ttt-lm-pytorch.  The
-# vendored copy is byte-identical to upstream (see MANIFEST.txt); fall back
-# to $TTCL_REPOS/ttt-lm-pytorch when it is absent.
+REPOS = os.environ.get("TTCL_REPOS", "")
+# Prefer the ttt.py vendored next to this file, so the kit is self-contained and
+# needs no clone of ttt-lm-pytorch.  The vendored copy is byte-identical to
+# upstream (see MANIFEST.txt); fall back to $TTCL_REPOS/ttt-lm-pytorch when absent.
 _HERE = os.path.dirname(os.path.abspath(__file__))
 TTT_PT_DIR = _HERE if os.path.exists(os.path.join(_HERE, "ttt.py")) \
     else os.path.join(REPOS, "ttt-lm-pytorch")

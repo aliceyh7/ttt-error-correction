@@ -51,7 +51,7 @@ validation_kit/      converter (JAX/EasyLM → HF PyTorch), live probe, five-arm
                      bootstrap CI, synthetic-checkpoint equivalence test; vendors ttt.py verbatim
 modal_runs.py        Modal job: prepare / probe / ladder / bootstrap stages on a volume
 colab_runs.ipynb     same pipeline as a Colab notebook
-scripts/             overwrite task sweep + figure scripts; reference norm-match kernel
+scripts/             overwrite task sweep + figure scripts
 results/modal/       raw JSON from the paper's runs (760M + 1.3B ladders, 1.3B + MLP-760M probes, CIs)
 results/*.json       overwrite-task sweeps
 figures/             Fig. 4 (ladder) and Fig. 5 (overwrite) as rendered

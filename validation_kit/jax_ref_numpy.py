@@ -4,9 +4,8 @@
 jax_ref_numpy.py -- a minimal, dependency-free NumPy transcription of the FLAX
 TTT forward pass (ttt-lm-jax/ttt/models/{model.py,ttt_layer.py}).
 
-Purpose: this is the *reference side* of the conversion equivalence test.  JAX
-and flax are not installed in the environment where the converter was developed
-(and are a heavy dependency on a Mac), so instead of running the real flax model
+Purpose: this is the *reference side* of the conversion equivalence test.  To
+keep the kit free of a JAX/flax dependency, instead of running the real flax model
 we transcribe it operation by operation and run it on the *unconverted*, native
 flax-layout parameter tree.  If `convert_jax_to_pt.py` gets a transpose, a conv
 layout, a head reshape or a name wrong, the PyTorch model's output will disagree

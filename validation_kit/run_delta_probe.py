@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-run_delta_probe.py -- run exp3's `delta_fraction_probe` on a converted OFFICIAL
+run_delta_probe.py -- run `delta_fraction_probe` on a converted OFFICIAL
 TTT checkpoint and emit the per-layer delta_fraction table alongside the
 CV(gamma^2) that the theory says controls it.
 
@@ -62,7 +62,7 @@ def get_tokens(args, vocab_size):
         raise SystemExit(
             f"tokenizer produced id {int(ids.max())} but the model vocab is "
             f"{vocab_size}; the released TTT models are Llama-2 tokenized "
-            f"(--tokenizer meta-llama/Llama-2-7b-hf)"
+            f"(--tokenizer NousResearch/Llama-2-7b-hf)"
         )
     return ids
 
@@ -77,7 +77,7 @@ def main(argv=None):
     p.add_argument("--token-file", help="pre-tokenised .pt of ids")
     p.add_argument("--random-tokens", type=int, default=None,
                    help="SANITY ONLY: probe on uniformly random ids")
-    p.add_argument("--tokenizer", default="meta-llama/Llama-2-7b-hf")
+    p.add_argument("--tokenizer", default="NousResearch/Llama-2-7b-hf")
     p.add_argument("--max-length", type=int, default=2048, help="probe window length")
     p.add_argument("--windows", type=int, default=4,
                    help="number of disjoint windows to average over")

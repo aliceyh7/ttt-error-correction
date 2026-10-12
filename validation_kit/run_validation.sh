@@ -12,15 +12,14 @@
 # PREREQUISITES (once):
 #     python3 -m pip install "torch" "transformers==4.44.2" safetensors msgpack numpy
 #     # transformers >= 5 breaks TTTForCausalLM.post_init(); pin 4.4x.
-#     # The released TTT models are Llama-2 tokenized, so the default tokenizer
-#     # is meta-llama/Llama-2-7b-hf -- a GATED repo.  Either
-#     #   huggingface-cli login   (after accepting the Llama-2 licence), or
-#     #   TOKENIZER=<some other llama-2 mirror> ./run_validation.sh ...
+#     # The released TTT models are Llama-2 tokenized; the default tokenizer is
+#     # the un-gated mirror NousResearch/Llama-2-7b-hf.  Any Llama-2 tokenizer
+#     # works:  TOKENIZER=meta-llama/Llama-2-7b-hf ./run_validation.sh ...
 #     # No repo clones are needed: ttt.py is vendored in this kit.
 #
 # ENV OVERRIDES
 #     MODEL=ttt_linear|ttt_mlp   default: inferred from the checkpoint
-#     TOKENIZER=...              default meta-llama/Llama-2-7b-hf
+#     TOKENIZER=...              default NousResearch/Llama-2-7b-hf
 #     MAXLEN=2048  WINDOWS=4     probe window length / how many windows
 #     DEVICE=cpu|mps             default cpu (the probe is small matmuls; cpu wins)
 #     OUTDIR=...                 where to put the converted model
@@ -82,7 +81,7 @@ echo; echo "### 2/3  delta_fraction probe on real tokens"
 "$PY" "$HERE/run_delta_probe.py" \
   --checkpoint "$OUTDIR" \
   --text "$CORPUS" \
-  --tokenizer "${TOKENIZER:-meta-llama/Llama-2-7b-hf}" \
+  --tokenizer "${TOKENIZER:-NousResearch/Llama-2-7b-hf}" \
   --max-length "${MAXLEN:-2048}" \
   --windows "${WINDOWS:-4}" \
   --device "${DEVICE:-cpu}" \
@@ -93,7 +92,7 @@ echo; echo "### 2/3  delta_fraction probe on real tokens"
 echo; echo "### 3/3  done"
 echo "  table + JSON : $OUTDIR/delta_fraction_probe.json"
 echo
-echo "  The full four-arm ablation on this same converted checkpoint is:"
+echo "  The full five-arm ablation on this same converted checkpoint is:"
 MODEL_GUESS="$("$PY" - "$OUTDIR" <<'EOF'
 import json, sys
 c = json.load(open(sys.argv[1] + "/config.json"))
@@ -102,6 +101,6 @@ EOF
 )"
 echo "    python3 $HERE/run_ablation_ladder.py \\"
 echo "        --checkpoint $OUTDIR --model ${MODEL:-$MODEL_GUESS} \\"
-echo "        --tokenizer ${TOKENIZER:-meta-llama/Llama-2-7b-hf} \\"
+echo "        --tokenizer ${TOKENIZER:-NousResearch/Llama-2-7b-hf} \\"
 echo "        --text $CORPUS --max-length 2048 --max-tokens 200000 \\"
-echo "        --arms descent,hebbian,ascent,frozen --device ${DEVICE:-cpu} --tag official_760m"
+echo "        --arms descent,hebbian,hebbian_nm,ascent,frozen --device ${DEVICE:-cpu} --tag official_760m"

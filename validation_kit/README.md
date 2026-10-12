@@ -1,7 +1,11 @@
-# TTT validation kit — official JAX checkpoint → PyTorch → delta_fraction probe
+# TTT validation kit — official JAX checkpoint → PyTorch → live probe → five-arm ladder
 
-Everything needed to run the `delta_fraction` validation on the **official**
-Test-Time-Training checkpoints, on a Mac, with no repo clones.
+Everything needed to convert the **official** Test-Time-Training checkpoints,
+measure the live error-correction share of the inner gradient, and run the
+inference-time ablation ladder. Self-contained: no repo clones are needed.
+This is the code that produced `results/modal/` in the paper repository; it has
+been run end to end on `ttt-linear-760m-pile-8k`, `ttt-linear-1.3b-pile-8k`
+and `ttt-mlp-760m-pile-8k`.
 
 You need exactly:
 
@@ -35,18 +39,18 @@ itself); argument 2 is any plain-text file. The script
    `delta_fraction = ||g_descent − g_hebbian|| / ||g_descent||`
    next to `CV(gamma^2)`, `gamma_rms`, `beta_rms` and `eta·||k||²`;
 3. writes `hf_converted/delta_fraction_probe.json` and prints the command for
-   the full four-arm ablation on the same converted model.
+   the full five-arm ablation on the same converted model.
 
 Useful environment overrides: `TOKENIZER`, `MAXLEN`, `WINDOWS`, `DEVICE`
 (`cpu` or `mps`), `OUTDIR`, `SELFTEST=1`.
 
 ### Tokenizer
 
-The released TTT models are **Llama-2 tokenized** (`vocab_size = 32000`), so
-the default is `meta-llama/Llama-2-7b-hf`, a *gated* repo — run
-`huggingface-cli login` after accepting the licence, or point `TOKENIZER=` at
-any Llama-2 tokenizer mirror you already have. `run_delta_probe.py` fails
-loudly if the tokenizer's ids overflow the model vocabulary.
+The released TTT models are **Llama-2 tokenized** (`vocab_size = 32000`). The
+default is the un-gated mirror `NousResearch/Llama-2-7b-hf`; any Llama-2
+tokenizer works (`TOKENIZER=meta-llama/Llama-2-7b-hf` after accepting the
+licence). `run_delta_probe.py` fails loudly if the tokenizer's ids overflow the
+model vocabulary.
 
 ---
 
@@ -76,11 +80,12 @@ variants — pure fp32 round-off.
 
 ---
 
-## Troubleshooting a real checkpoint
+## Converting a released checkpoint
 
-The converter has never been run against a real released file (this kit was
-built in an environment with no huggingface.co access), so the first thing to
-do if anything looks wrong is dump what is actually in the file:
+The converter has been run on the three checkpoints used in the paper
+(`--verify` passes on each, and the converted models reproduce the released
+perplexities under the `descent` arm). If a different checkpoint looks wrong,
+first dump what is actually in the file:
 
 ```bash
 python3 convert_jax_to_pt.py ~/ttt/linear-760m/streaming_train_state --list-keys | head -60
@@ -105,9 +110,10 @@ tight machine. The fp32 output is ~3.0 GB on disk for the 760M model.
 |---|---|
 | `run_validation.sh` | the one-command driver |
 | `convert_jax_to_pt.py` | EasyLM/flax msgpack → HF safetensors + `config.json`; streams the file and writes sharded output, so peak RSS ≈ one shard, not the whole model. `--verify` loads and runs the result |
-| `run_delta_probe.py` | loads a converted model, runs exp3's `delta_fraction_probe`, prints/saves the per-layer table |
-| `run_ablation_ladder.py` | exp3's full four-arm ablation (vendored) |
-| `ttt_arms.py` | exp3's arm/probe implementation (vendored; one edit, see `MANIFEST.txt`) |
+| `run_delta_probe.py` | loads a converted model, runs `delta_fraction_probe`, prints/saves the per-layer table |
+| `run_ablation_ladder.py` | the five-arm inference-time ablation (descent / hebbian / hebbian_nm / ascent / frozen) |
+| `ttt_arms.py` | the arms and the probe: a one-function patch of `ttt.ln_fused_l2_bwd`; norm-matching and its ratio log |
+| `bootstrap_spearman.py` | layer-bootstrap CI for Spearman ρ between CV(γ²) and the live delta fraction |
 | `ttt.py` | `ttt-lm-pytorch/ttt.py`, **verbatim** — the model definition |
 | `jax_ref_numpy.py` | float64 NumPy transcription of the flax forward, reference side of the equivalence test |
 | `make_synthetic_jax_ckpt.py` | writes byte-format-accurate fake EasyLM checkpoints |
@@ -202,15 +208,14 @@ failure there would leave a random output head.
 
 ---
 
-## What has *not* been verified
+## Assumptions
 
-* No real released checkpoint was ever opened. The byte format, the key paths
-  and the `params/params/` prefix come from `ttt-lm-jax/ttt/infra/checkpoint.py`
-  + `flax.serialization`, and from the parameter list observed on the real 760M
-  file; the synthetic fixtures reproduce that format exactly, but a surprise in
-  the real file (an extra parameter, a different prefix, a milestone-suffixed
-  filename) would surface as a hard error, not as wrong numbers. Run
-  `--list-keys` first.
+* The byte format, the key paths and the `params/params/` prefix come from
+  `ttt-lm-jax/ttt/infra/checkpoint.py` + `flax.serialization`; the synthetic
+  fixtures reproduce that format exactly, and the three released checkpoints
+  convert without unmapped keys. A surprise in another file (an extra
+  parameter, a different prefix) surfaces as a hard error, not as wrong
+  numbers; run `--list-keys` first.
 * `rope_theta`, `ttt_base_lr` and `rms_norm_eps` are not in the checkpoint and
   are taken from the JAX `*-TTT` configs. They are correct for every released
   model but are assumptions, not measurements.

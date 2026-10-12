@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-run_ablation_ladder.py -- HEADLINE experiment: four-arm ablation of the TTT
+run_ablation_ladder.py -- HEADLINE experiment: five-arm ablation of the TTT
 inner-loop update on a trained checkpoint, inference only.
 
     arm 1  descent   the reference update, unmodified                (baseline)
