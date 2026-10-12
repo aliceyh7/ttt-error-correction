@@ -12,26 +12,12 @@ and `gamma_cv2`).
 import argparse
 import json
 import numpy as np
-
-
-def _avg_rank(a):
-    """Average ranks for ties (resampling with replacement duplicates observations)."""
-    a = np.asarray(a, float)
-    order = np.argsort(a, kind="mergesort")
-    ranks = np.empty(len(a), float)
-    i = 0
-    while i < len(a):
-        j = i
-        while j + 1 < len(a) and a[order[j + 1]] == a[order[i]]:
-            j += 1
-        ranks[order[i:j + 1]] = 0.5 * (i + j)
-        i = j + 1
-    return ranks
+from scipy.stats import rankdata
 
 
 def spearman(x, y):
-    rx = _avg_rank(x)
-    ry = _avg_rank(y)
+    rx = rankdata(x, method="average").astype(float)
+    ry = rankdata(y, method="average").astype(float)
     rx -= rx.mean(); ry -= ry.mean()
     d = np.sqrt((rx ** 2).sum() * (ry ** 2).sum())
     return float((rx * ry).sum() / d) if d > 0 else float("nan")

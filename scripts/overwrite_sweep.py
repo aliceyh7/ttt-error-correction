@@ -18,12 +18,6 @@ If it does, the task is the same one; if not, the convention differs and the swe
 rerun with the original code instead.
 
 Usage:  python overwrite_sweep.py --out figdir
-        python overwrite_sweep.py --out figdir --equal-counts   # Fig. 5(c) data only
-
-`--equal-counts` writes overwrite_equal_counts.json: r writes of v_old followed by r writes
-of v_new (equal counts, so vote-counting cannot favor either value), every write with its
-own noisy key copy at sigma = 0.05, 400 trials per cell, eta in {0.04, 0.01, 0.004, 0.001},
-r in {1, 2, 4, ..., 128}.
 """
 import argparse
 import json
@@ -64,30 +58,6 @@ def run_trials(rule, eta, sigma, n_trials, r_new=1, seed=0):
     return margins
 
 
-def run_trials_equal(rule, eta, sigma, n_trials, r, seed=0):
-    """Equal-count repeated writes: r x (k_i -> v_old) then r x (k_j -> v_new), each write
-    with a fresh noisy key copy. Returns per-trial margins at the underlying key."""
-    rng = np.random.default_rng(seed)
-    margins = np.empty(n_trials)
-    for t in range(n_trials):
-        k = unit(rng.standard_normal(D))
-        v_old = unit(rng.standard_normal(D))
-        v_new = unit(rng.standard_normal(D))
-        W = np.zeros((D, D))
-        for vv in [v_old] * r + [v_new] * r:
-            kk = unit(k + sigma * rng.standard_normal(D))
-            if rule == "additive":
-                W += eta * np.outer(vv, kk)
-            elif rule == "mse":
-                W += eta * np.outer(vv - W @ kk, kk)
-            else:
-                raise ValueError(rule)
-        out = W @ k
-        n = np.linalg.norm(out)
-        margins[t] = 0.0 if n == 0 else (out @ v_new - out @ v_old) / n
-    return margins
-
-
 def summarize(m):
     return dict(mean=float(m.mean()), se=float(m.std(ddof=1) / np.sqrt(len(m))),
                 frac_new=float((m > 0).mean()))
@@ -97,26 +67,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=".")
     ap.add_argument("--n", type=int, default=1000)
-    ap.add_argument("--equal-counts", action="store_true",
-                    help="only generate the equal-count repeated-write data (Fig. 5c)")
     args = ap.parse_args()
-    if args.equal_counts:
-        rs = [1, 2, 4, 8, 16, 32, 64, 128]
-        out = {}
-        print("== equal-count repeated writes, noise=0.05, 400 trials ==")
-        for e in (0.04, 0.01, 0.004, 0.001):
-            out[str(e)] = {}
-            for rule in ("additive", "mse"):
-                out[str(e)][rule] = []
-                for r in rs:
-                    summ = summarize(run_trials_equal(rule, e, 0.05, 400, r, seed=7))
-                    summ["r"] = r
-                    out[str(e)][rule].append(summ)
-                print(f"  eta={e:<6g} {rule:8s} " + "  ".join(f"r={x['r']}:{x['mean']:+.3f}" for x in out[str(e)][rule]))
-        with open(f"{args.out}/overwrite_equal_counts.json", "w") as f:
-            json.dump(out, f, indent=1)
-        print(f"wrote {args.out}/overwrite_equal_counts.json")
-        return
     results = {}
 
     # --- Panel A: validation at eta = 1 across key noise (reproduces the paper's Fig. 5) ---
