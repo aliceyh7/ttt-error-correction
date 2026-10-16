@@ -1,6 +1,6 @@
 # Error Correction in Trained TTT Layers
 
-Code and saved results for the revised paper by Yuhe Hu and Wen Jia Hu.
+Code and saved results for the revised paper by Yuhe Hu.
 
 The analysis distinguishes an explicit prediction-derived gradient from its behavioral effect. The released LayerNorm objective retains state dependence after prediction removal. The historical arm names `hebbian` and `hebbian_nm` remain in the code and result files for compatibility. They mean prediction removed and prediction removed with local norm matching in the revised paper.
 
